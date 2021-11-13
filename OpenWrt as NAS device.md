@@ -16,6 +16,7 @@ Features we want:
 - no issues with directories with many files
 - optionally linked with WireGuard to other locations
 - optionally allow remote network to access local shares
+- optionally enable mobile devices to access all subnets
 
 Step 1: Install necessary packages
 ----------------------------------
@@ -182,7 +183,7 @@ opkg install luci-app-ksmbd ksmbd-utils shadow-useradd
 in case you have just upgraded your OpenWrt and already had them setup before.
 But to make sure all settings are applied, run `/etc/init.d/ksmbd restart` once.
 Also, if you are a Windows user and have issues reconnecting to your network
-shares after the upgrade, try restarating service *Workstation* or simply
+shares after the upgrade, try restarting service *Workstation* or simply
 restart your computer.
 
 We need to add users that will be used to connect to our SMB service. We can
@@ -292,7 +293,7 @@ changes again.
 You should now be able to connect to SMB service from your client devices.
 Assuming your device is named *openwrt*, try accessing the router with
 `smb://openwrt` or `\\openwrt\` and you should see all three shares. You can
-also try replacing *openwrt* with the IP address of the router. Depening with
+also try replacing *openwrt* with the IP address of the router. Depending with
 which user you connect, you might not have access to all directories here (eg.
 if you connect as *share* user, you will not have access to *joe* and *jane*
 directories). Try making some files if you have connected as *joe* in the
@@ -321,8 +322,8 @@ above, it's advised to tail system logs in the console as you apply them, to
 make sure you are not having issues with the *ksmbd* daemon with some of their
 values. You can tail logs with `logread -f` command.
 
-Step 4: Setup a WireGuard tunnel
---------------------------------
+Step 4: Setup a WireGuard tunnel between two routers
+----------------------------------------------------
 
 This is an optional step, in case you want to access the LAN network above and
 any services on it (including our shares) from another location. We will be
@@ -371,16 +372,10 @@ with the *IP addresses* configuration.
 For the interface IP address, we need to use a new dedicated subnet, different
 to both LAN networks. You can use these values as *IP Addresses* on both.
 ```
-On Router A: WIRE is 192.168.222.1/28
+On Router A: WIRE is 192.168.222.10/24
 
-On Router B: WIRE is 192.168.222.2/28
+On Router B: WIRE is 192.168.222.20/24
 ```
-
-> **_Tip:_** Notice how both interfaces are on the same subnet with capacity for
-14 hosts in this example, due to /28 maskbit. You can of course use a larger
-subnet if you want, eg. also /24 if you plan to have up to 254 remote locations.
-To better understand subnet capacities, you can search online for *subnet
-calculator* term.
 
 Decide on the *Listen port* here, since you will need to open firewall to allow
 external connection to it. You will also need it to when seting up peer on the
@@ -391,7 +386,7 @@ servers advertised from peers*, *IPv6* and any other checkbox which assumes you
 want to route all of your traffic via tunnel (we don't want this).
 
 On the *Firewall Settings* tab, make sure to add it to its own dedicated
-Firewall zone (name it eg. *wgzone*) on both routers. In the zone name dropdown,
+firewall zone (name it eg. *wgzone*) on both routers. In the zone name dropdown,
 there should be a dedicated input field to enter new zone name. This will make
 it easier to come up with special firewall rules later on, should you want to be
 specific about this.
@@ -439,7 +434,7 @@ On Router A, add a peer and put description as `Link-2-B`, enter public key from
 Router B (in the ssh shell on Router B, type command `wg` to see public key --
 do not by mistake put any private key here). For *Allowed IPs*:
 
-- add the Router B WIRE interface's IP address: `192.168.222.2`
+- add the Router B WIRE interface's IP address: `192.168.222.20`
 - add the Router B LAN network address with subnet: `192.168.20.1/24`  
 
 With the setup above, we should be able to route traffic to Router B LAN network
@@ -458,7 +453,7 @@ this, so search online how to set this up, because it's out of scope of this
 guide.
 
 > **_Tip:_** If your Router B is behind another router (eg. ISP provided), then
-you must open and forward port `10000` from this ISP router to your Router B local
+you must open and forward port `10000` from this router to your Router B local
 IP address (be it WAN or LAN one from Router B's perspective). Also, if your
 dynamic IP address changes and the connection is lost for longer time, the only
 way for WireGuard client on the other end to be aware of new the IP address your
@@ -474,7 +469,7 @@ read in the WireGuard whitepaper under *Endpoints & Roaming* section.
 Repeat the same procedure of adding a peer on Router B: Use description
 `Link-2-A`, enter public key from Router A (get it from the ssh shell on Router
 A using the same `wg` command). For *Allowed IPs*, add the IP address
-`192.168.222.1` and also LAN network from Router A's LAN interface
+`192.168.222.10` and also LAN network from Router A's LAN interface
 `192.168.10.1/24`, so we can route traffic to it as well. And if you know its
 network public IP address, add it here as *Endpoint Host* together with the
 suggested *Endpoint Port* value.
@@ -507,7 +502,7 @@ interfaces line to look like this:
 	interfaces = |INTERFACES| wire
 ```
 
-This should make it so that the daemon listens on the interface seleced on the
+This should make it so that the daemon listens on the interface selected on the
 previous tab as well as on the WIRE interface. Now *Save & Apply* changes (do
 the double toggle thing) and you should be able to connect to your shares from
 both networks!
@@ -550,6 +545,12 @@ its own ones. In particular:
 additionally route the Router B LAN subnet
 - on Router B, Router A peer configuration (Link-2-A) would allow it to
 additionally route the Router C LAN subnet
+- on both Router B and C, Router A should be allowed to route the entire WIRE
+subnet 192.168.222.0/24 instead of only its WIRE interface address; This is
+important mainly when the Router B is trying to access Router C directly, since
+its outging IP will then be eg. 192.168.222.20 and for this packet to be
+accepted on Router C from within Router A tunnel, Router A must be allowed to
+route it (otherwise, WireGuard will silently drop these packets).
 
 Adding more and more locations now is just a matter of careful peer
 configuration, in particular, which networks should they be allowed to route
@@ -558,3 +559,120 @@ between Routers B and C, the transfer speed will be limited by its WAN interface
 download and upload link speeds (whichever is lower) as well as its own CPU
 capacity, because it has to decrypt traffic from one WireGuard tunnel and then
 encrypt it before sending it to another.
+
+Step 5: Access any of your local subnets from your mobile devices on the go
+---------------------------------------------------------------------------
+
+This is another optional step, where we want to enable mobile devices to
+securely connect to one of the routers above and be able to access resources on
+any of the subnets, including the SMB service we have setup above. We will
+assume mobile device will be using WireGuard to connect to Router A from the
+example above.
+
+This step assumes you have completed the Step 4 above. If you only have one
+router and no remote locations, please follow the Step 4 anyways, but skip
+the section *Setting up WireGuard peers* and also skip any action you would
+need to do on Router B.
+
+> **_Tip:_** We assume all your devices are trustable, so we will be using the
+same WIRE interface we use to connect remote locations for our mobile devices.
+You could opt-in to create another WireGuard interface on your main router and
+then put it in its own dedicated firewall zone with its own firewall and routing
+rules for your mobile devices.
+
+Before proceeding, we need to install the official WireGuard app on the mobile
+device and start it, so please do this before proceeding.
+
+To make the public key configuration on your device a bit easier, in Luci, you
+can go to *System > Software* and in the *Filter* field enter `qrencode` as the
+name of the package we want to install. If the list is empty here, click on the
+*Update lists...* button which will run `opkg update` command for you.
+
+Click in the *Install...* button next to *qrencode* package. You can now go to
+*Status > WireGuard* and click on the button to show a QR code. We can scan this
+code with the WireGuard app on the device to speed up the steps we need to do
+there. To do so, click on *[+]* or *Add a tunnel* button inside the app. Choose
+the option to create tunnel from QR code and then scan the appropriate code
+presented by your router (we assume you are logged-in to Luci on another device
+for this to be possible). When asked, ideally, name the interface WIRE so that
+it's named the same like ones above. Allow the VPN configuration changes if
+asked to.
+
+> **_Warning:_** If you plan to configure more than one mobile device, it is
+essential to always refresh the page above in order to generate a new QR code
+for each of the devices. Never scan the same QR code twice!
+
+While the step above was a good start, we still need to finish the setup. Click
+on then newly created interface (not the toggle). Click on *Edit* button.
+
+We should use another IP from our WIRE /24 subnet for this device. Assuming we
+will reserve the first 99 addresses for routers, let's use this IP:
+```
+Addresses: 192.168.222.100/24
+```
+
+Scroll down to first peer. You will see that it's configured there with entire
+IP range as the *Allowed IPs*. If you prefer to route your entire mobile device
+traffic over your home connection, this is fine, but if you only want to route
+traffic intended for your home subnets, you should change that field to include
+all the subnets from LAN networks you want to be able to access, as well as the
+entire WIRE subnet itself. For our example with two LAN subnets, it would look
+like this:
+```
+Allowed IPs: 192.168.222.0/24, 192.168.10.0/24, 192.168.20.0/24
+```
+
+In the peer *Endpoint* field, we have to enter the public IP of the router. So
+this is either fixed IP address or a DDNS name. It also has to be followed by
+the port we have specified with semicolon as the separator. An example how to
+fill this field would look like one of these:
+```
+Endpoint: 111.222.333.444:10000
+Endpoint: myrouter.example.com:10000
+```
+
+We can *Save* changes to this interface now and proceed with configuring this
+device as a peer on the router as well. But before we proceed, we need to copy
+the INTERFACE *Public key* from the device. Tap on it and *Copy* it to your
+device's clipboard now. Do not by mistake copy the PEER's key here.
+
+To make this process a bit simpler, if you can, login to your router's Luci
+interface from your device. Otherwise, find a safe way to transfer the copied
+public key to your computer you have Luci opened on. When in Luci, let's go to
+*Network > Interfaces*, edit the WIRE interface and go to *Peers* tab.
+
+We need to add a new peer here for each mobile device we want to allow to
+establish a WireGuard tunnel with our router. So click *Add peer* button. For
+peer *Description*, enter something to distinguish your mobile device.
+
+In the *Public Key*, paste the mobile device's public key that we have copied.
+
+In the *Allowed IPs*, put the WIRE IP you have choosen for this mobile device,
+in our example that would be `192.168.222.100`.
+
+Enable option *Route Allowed IPs* for this peer and you can keep all other
+fields clear. Click *Save*, then *Save & Apply* and most importantly, *Restart*
+the WIRE interface on the router while on this page.
+
+Now, on your main computer, assuming Luci is still open there, go to page
+*Status > WireGuard* so that we can monitor if the mobile device's WireGuard
+client will connect.
+
+Back in the WireGuard app, disconnect from your local wireless network, enable
+the VPN interface with the toggle and wait a bit. Note that unless you have
+defined *Persistent keepalive* value for your router peer in your WireGuard app,
+you will actually have to send an IP packet to your LAN before WireGuard will
+establish the connection. So on your mobile device, try opening Luci using its
+local IP LAN address `192.168.10.1` and the VPN connection should be established
+within seconds. You could also use some app which can send *ping* command.
+
+Finally, if you want to be able to access other clients on the same WIRE network
+where you have connected to, or locations other than the Router A's LAN subnet,
+ensure that the Router A is configured on all other routers and clients as peer
+which is being allowed to route the entire WIRE subnet (so `192.168.222.0/24`
+instead of its WIRE interface IP address only). Otherwise, with our example
+setup above in the Step 4, if you tried pinging Router B from your phone using
+its `192.168.20.1` or `192.168.222.20` address, because your outgoing IP will be
+`192.168.222.100`, once Router A receives it and sends it to Router B via their
+tunnel, WireGuard on Router B would reject this packet before it even reaches
+the firewall.
