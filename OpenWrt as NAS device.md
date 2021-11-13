@@ -395,7 +395,7 @@ Save the interfaces now on both routers and then click on their individual
 *Restart* buttons. We now have both interfaces ready, but we still have to make
 them able to establish a connection between them.
 
-#### Firewall for WireGuard incoming connection
+#### Firewall for the incoming WireGuard connection
 
 Before we proceed with setting up peers, let's open a firewall hole for the
 incoming WireGuard connection. Assuming you will use `10000` as listen port for
@@ -588,7 +588,7 @@ can go to *System > Software* and in the *Filter* field enter `qrencode` as the
 name of the package we want to install. If the list is empty here, click on the
 *Update lists...* button which will run `opkg update` command for you.
 
-Click in the *Install...* button next to *qrencode* package. You can now go to
+Click on the *Install...* button next to *qrencode* package. You can now go to
 *Status > WireGuard* and click on the button to show a QR code. We can scan this
 code with the WireGuard app on the device to speed up the steps we need to do
 there. To do so, click on *[+]* or *Add a tunnel* button inside the app. Choose
@@ -673,9 +673,9 @@ which is being allowed to route the entire WIRE subnet (so `192.168.222.0/24`
 instead of its WIRE interface IP address only). Otherwise, with our example
 setup above in the Step 4, if you tried pinging Router B from your phone using
 its `192.168.20.1` or `192.168.222.20` address, because your outgoing IP will be
-`192.168.222.100`, once Router A receives it and sends it to Router B via their
-tunnel, WireGuard on Router B would drop this packet before it even reaches the
-firewall.
+`192.168.222.100`, once Router A receives the ping packet and sends it to Router
+B via their tunnel, WireGuard on Router B would drop this packet before it even
+reaches the firewall.
 
 > **_Tip:_** To test reachability of your devices in general, you can use `ping`
 command and then on all the routers you expect this packet should pass through,
