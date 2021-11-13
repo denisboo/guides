@@ -546,11 +546,11 @@ additionally route the Router B LAN subnet
 - on Router B, Router A peer configuration (Link-2-A) would allow it to
 additionally route the Router C LAN subnet
 - on both Router B and C, Router A should be allowed to route the entire WIRE
-subnet 192.168.222.0/24 instead of only its WIRE interface address; This is
+subnet `192.168.222.0/24` instead of only its WIRE interface address; This is
 important mainly when the Router B is trying to access Router C directly, since
-its outging IP will then be eg. 192.168.222.20 and for this packet to be
-accepted on Router C from within Router A tunnel, Router A must be allowed to
-route it (otherwise, WireGuard will silently drop these packets).
+its outgoing IP will then be eg. `192.168.222.20` and for this packet to be
+accepted on Router C from within Router A's tunnel, Router A must be allowed to
+route it (otherwise, WireGuard will silently drop such packets).
 
 Adding more and more locations now is just a matter of careful peer
 configuration, in particular, which networks should they be allowed to route
@@ -674,5 +674,13 @@ instead of its WIRE interface IP address only). Otherwise, with our example
 setup above in the Step 4, if you tried pinging Router B from your phone using
 its `192.168.20.1` or `192.168.222.20` address, because your outgoing IP will be
 `192.168.222.100`, once Router A receives it and sends it to Router B via their
-tunnel, WireGuard on Router B would reject this packet before it even reaches
-the firewall.
+tunnel, WireGuard on Router B would drop this packet before it even reaches the
+firewall.
+
+> **_Tip:_** To test reachability of your devices in general, you can use `ping`
+command and then on all the routers you expect this packet should pass through,
+run the command `tcpdump -i wire icmp` to see if the router is receiving the
+ping, relaying it further along and if the target device is replying back. This
+example assumes the interface we want to monitor is called *wire*, of course. If
+your target device is not one of the routers and you can run `tcpdump` command
+there as well, you might need to specify a different interface name.
